@@ -3,6 +3,7 @@ vim.api.nvim_create_augroup("formatlint", {})
 vim.api.nvim_create_augroup("HighlightYank", {})
 
 vim.api.nvim_create_autocmd("TextYankPost", {
+
 	group = "HighlightYank",
 	pattern = "*",
 	callback = function()
@@ -12,6 +13,8 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 		})
 	end,
 })
+
+
 
 vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 	group = "main",

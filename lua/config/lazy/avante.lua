@@ -2,10 +2,15 @@ return {
 	"yetone/avante.nvim",
 	event = "VeryLazy",
 	lazy = false,
-	version = false, -- set this if you want to always pull the latest change
+	version = {
+    commit = "f97a2d9bc17f9690681542b6858b617dfc3ed02d"
+  },
 	opts = {
 		provider = "copilot",
 		auto_suggestions_provider = "copilot",
+    mappings = {
+      accept = "<Tab>",
+    },
 		claude = {
 			endpoint = "https://api.anthropic.com",
 			model = "claude-3-5-sonnet-20240620",

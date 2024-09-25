@@ -10,6 +10,7 @@ return {
 		"L3MON4D3/LuaSnip",
 		"hrsh7th/nvim-cmp",
 		"j-hui/fidget.nvim",
+		"onsails/lspkind.nvim",
 		"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
 	},
 
@@ -33,7 +34,10 @@ return {
 				"ts_ls",
 				"tailwindcss",
 				"eslint",
+				"ruff",
+				"astro",
 				"cssls",
+        "biome",
 				"html",
 			},
 			handlers = {
@@ -60,6 +64,14 @@ return {
 		})
 
 		cmp.setup({
+			formatting = {
+				format = require("lspkind").cmp_format({
+					mode = "symbol",
+					maxwidth = 50,
+					ellipsis_char = "...",
+					show_labelDetails = true,
+				}),
+			},
 			snippet = {
 				expand = function(args)
 					require("luasnip").lsp_expand(args.body)
@@ -78,6 +90,17 @@ return {
 				{ name = "buffer" },
 			}),
 		})
+
+		local signs = {
+			{ name = "DiagnosticSignError", text = "" },
+			{ name = "DiagnosticSignWarn", text = "" },
+			{ name = "DiagnosticSignHint", text = "" },
+			{ name = "DiagnosticSignInfo", text = "" },
+		}
+
+		for _, sign in ipairs(signs) do
+			vim.fn.sign_define(sign.name, { texthl = sign.name, text = sign.text, numhl = "" })
+		end
 
 		vim.diagnostic.config({
 			update_in_insert = true,
