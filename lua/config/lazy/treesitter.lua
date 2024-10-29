@@ -7,6 +7,8 @@ return {
 				"vimdoc",
         "astro",
 				"javascript",
+        "cpp",
+        "cmake",
         "css",
         "python",
 				"typescript",

@@ -4,11 +4,15 @@ return {
 		local formatter = require("formatter")
 		local default_formatters = require("formatter.defaults")
 		local prettierd = default_formatters.prettierd
+    local clangformat = default_formatters.clangformat
 		local prettier = default_formatters.prettier
 		local stylua = default_formatters.stylua
 
 		formatter.setup({
 			filetype = {
+        cpp = {
+          clangformat,
+        },
 				javascript = {
 					prettierd,
 				},
@@ -18,6 +22,9 @@ return {
 				typescript = {
 					prettierd,
 				},
+        astro = {
+          prettierd,
+        },
 				typescriptreact = {
 					prettierd,
 				},

@@ -1,4 +1,6 @@
-return {
+return
+
+  {
 	"neovim/nvim-lspconfig",
 	dependencies = {
 		"williamboman/mason.nvim",
@@ -8,12 +10,11 @@ return {
 		"hrsh7th/cmp-path",
 		"hrsh7th/cmp-cmdline",
 		"L3MON4D3/LuaSnip",
-		"hrsh7th/nvim-cmp",
+		{"iguanacucumber/magazine.nvim", name = "nvim-cmp"},
 		"j-hui/fidget.nvim",
 		"onsails/lspkind.nvim",
 		"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
 	},
-
 	config = function()
 		require("lsp_lines").setup()
 		local cmp = require("cmp")
@@ -34,6 +35,8 @@ return {
 				"ts_ls",
 				"tailwindcss",
 				"eslint",
+          "clangd",
+          "cmake",
 				"ruff",
 				"astro",
 				"cssls",
@@ -92,10 +95,10 @@ return {
 		})
 
 		local signs = {
-			{ name = "DiagnosticSignError", text = "" },
-			{ name = "DiagnosticSignWarn", text = "" },
-			{ name = "DiagnosticSignHint", text = "" },
-			{ name = "DiagnosticSignInfo", text = "" },
+			{ name = "DiagnosticSignError", text = "✕" },
+			{ name = "DiagnosticSignWarn", text = "⚠" },
+			{ name = "DiagnosticSignHint", text = "" },
+			{ name = "DiagnosticSignInfo", text = "" },
 		}
 
 		for _, sign in ipairs(signs) do
@@ -202,3 +205,4 @@ return {
 		})
 	end,
 }
+

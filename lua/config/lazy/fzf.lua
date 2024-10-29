@@ -7,7 +7,32 @@ return {
 		"nvim-tree/nvim-web-devicons",
 	},
 	config = function()
-		require("fzf-lua").setup({})
+		require("fzf-lua").setup({
+			"max-perf",
+			fzf_colors = true,
+			previewers = {
+				bat = {
+					cmd = "bat",
+					args = "--color=always --style=changes",
+				},
+			},
+			winopts = {
+				height = 0.55,
+				width = 0.60,
+				row = 1,
+				col = 0,
+				backdrop = 40,
+				preview = {
+					border = "border",
+					vertical = "down:45%",
+					horizontal = "right:60%",
+					winopts = {
+						cursorline = false,
+						number = false,
+					},
+				},
+			},
+		})
 		require("which-key").add({
 			{
 				"<leader>ff",
