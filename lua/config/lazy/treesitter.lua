@@ -3,7 +3,7 @@ return {
   branch = "main",
 	build = ":TSUpdate",
 	config = function()
-		require("nvim-treesitter.configs").setup({
+	require("nvim-treesitter.configs").setup({
 			ensure_installed = {
 				"vimdoc",
         "astro",
@@ -11,10 +11,15 @@ return {
         "cpp",
         "cmake",
         "css",
+				"tsx",
+				"vue",
+				"svelte",
 				"typescript",
 				"lua",
 				"bash",
+				"xml",
 				"html",
+				"markdown",
 				"scss",
 			},
 			sync_install = false,
