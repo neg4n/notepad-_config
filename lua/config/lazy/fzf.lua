@@ -21,12 +21,16 @@ return {
 				width = 0.60,
 				row = 1,
 				col = 0,
-				backdrop = 40,
+				backdrop = 50,
+        border = { "┏", "━", "┓", "┃", "┛", "━", "┗", "┃" },
 				preview = {
-					border = "border",
+
+        border = "border-top",
+
 					vertical = "down:45%",
 					horizontal = "right:60%",
 					winopts = {
+            preview = "none",
 						cursorline = false,
 						number = false,
 					},

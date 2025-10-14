@@ -4,9 +4,9 @@ function ColorMyPencils(color)
 end
 
 return {
-  {"bettervim/yugen.nvim",
-  init = function ()
-
+	{
+		"bettervim/yugen.nvim",
+		init = function()
 			vim.cmd.colorscheme("yugen")
 			vim.api.nvim_set_hl(0, "FzfLuaBorder", { fg = "#444444" })
 			vim.api.nvim_set_hl(0, "FzfLuaTitle", { fg = "#7788AA", bold = true })
@@ -17,8 +17,12 @@ return {
 			vim.api.nvim_set_hl(0, "FzfLuaFzfCursorLine", { link = "FzfLuaCursorLine" })
 			vim.api.nvim_set_hl(0, "FzfLuaFzfBorder", { link = "FzfLuaBorder" })
 			vim.api.nvim_set_hl(0, "FzfLuaFzfPointer", { link = "FzfLuaTitle" })
-  end, config = function ()
-   require("yugen").setup();
+
+			vim.api.nvim_set_hl(0, "RenderMarkdownCode", { link = "FzfLuaTitle" })
+			vim.api.nvim_set_hl(0, "RenderMarkdownCodeInline", { link = "FzfLuaTitle" })
+		end,
+		config = function()
+			require("yugen").setup()
 
 			require("nvim-web-devicons").setup({
 				{
@@ -31,7 +35,9 @@ return {
 					},
 				},
 			})
-  end},
+      ColorMyPencils("yugen")
+		end,
+	},
 	{
 		"slugbyte/lackluster.nvim",
 		dependencies = { "nvim-web-devicons" },
@@ -43,14 +49,6 @@ return {
 				},
 			})
 		end,
-	},
-	{
-		"aliqyan-21/darkvoid.nvim",
-		-- config = function()
-		-- require("darkvoid").setup({
-		--		glow = true,
-		--})
-		--end,
 	},
 	{
 		"rose-pine/neovim",
