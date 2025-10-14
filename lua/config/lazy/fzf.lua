@@ -22,7 +22,7 @@ return {
 				row = 1,
 				col = 0,
 				backdrop = 50,
-        border = { "┏", "━", "┓", "┃", "┛", "━", "┗", "┃" },
+       border = { "┏", "━", "┓", "┃", "┛", "━", "┗", "┃" },
 				preview = {
 
         border = "border-top",

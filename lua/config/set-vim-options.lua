@@ -37,3 +37,6 @@ vim.opt.scrolloff = 8
 vim.opt.signcolumn = "yes"
 vim.opt.isfname:append("@-@")
 vim.opt.updatetime = 50
+
+-- Disable built-in marks key (we repurpose 'm' for the matcher)
+vim.keymap.set('n', 'm', '<Nop>')
