@@ -18,61 +18,47 @@ return {
 			},
 			winopts = {
 				height = 0.55,
-				width = 0.60,
+				width = 1,
 				row = 1,
 				col = 0,
 				backdrop = 50,
-       border = { "┏", "━", "┓", "┃", "┛", "━", "┗", "┃" },
+				border = { "┏", "━", "┓", "┃", "┛", "━", "┗", "┃" },
 				preview = {
-
-        border = "border-top",
-
+					border = "border-top",
 					vertical = "down:45%",
 					horizontal = "right:60%",
 					winopts = {
-            preview = "none",
+						preview = "none",
 						cursorline = false,
 						number = false,
 					},
 				},
 			},
 		})
-		require("which-key").add({
-			{
-				"<leader>ff",
-				function()
-					require("fzf-lua").files()
-				end,
-				desc = "Find files",
-			},
-			{
-				"<leader>fb",
-				function()
-					require("fzf-lua").buffers()
-				end,
-				desc = "Navigate through open buffers",
-			},
-			{
-				"<leader>/",
-				function()
-					require("fzf-lua").live_grep()
-				end,
-				desc = "Live grep",
-			},
-			{
-				"<leader>g",
-				function()
-					require("fzf-lua").git_files()
-				end,
-				desc = "Git files",
-			},
-			{
-				"<leader>vh",
-				function()
-					require("fzf-lua").help_tags()
-				end,
-				desc = "Help tags",
-			},
-		})
+
+		_G.live_ripgrep = function(opts)
+			opts = opts or {}
+			opts.prompt = "rg> "
+			opts.file_icons = true
+			opts.color_icons = true
+			-- setup default actions for edit, quickfix, etc
+			opts.actions = FzfLua.defaults.actions.files
+			-- see preview overview for more info on previewers
+			opts.previewer = "builtin"
+			opts.fn_transform = function(x)
+				return FzfLua.make_entry.file(x, opts)
+			end
+			return FzfLua.fzf_live(function(args)
+				return "rg --column --color=always -- " .. vim.fn.shellescape(args[1] or "")
+			end, opts)
+		end
+
+		local fzf = require("fzf-lua")
+
+		vim.keymap.set("n", "<leader>f", fzf.files, { desc = "Find files" })
+		vim.keymap.set("n", "<leader>b", fzf.buffers, { desc = "Navigate through open buffers" })
+		vim.keymap.set("n", "<leader>/", _G.live_ripgrep, { desc = "Live grep" })
+		vim.keymap.set("n", "<leader>g", fzf.git_diff, { desc = "Git files" })
+		vim.keymap.set("n", "<leader>vh", fzf.help_tags, { desc = "Help tags" })
 	end,
 }

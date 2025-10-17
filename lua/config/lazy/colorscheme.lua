@@ -1,8 +1,3 @@
-function ColorMyPencils(color)
-	color = color or "rose-pine"
-	vim.cmd.colorscheme(color)
-end
-
 return {
 	{
 		"bettervim/yugen.nvim",
@@ -26,70 +21,10 @@ return {
 
 			require("nvim-web-devicons").setup({
 				{
-					color_icons = false,
-					override = {
-						["default_icon"] = {
-							color = require("lackluster").color.gray4,
-							name = "Default",
-						},
-					},
+	 			color_icons = false,
 				},
 			})
-      ColorMyPencils("yugen")
+      vim.cmd.colorscheme("yugen")
 		end,
-	},
-	{
-		"slugbyte/lackluster.nvim",
-		dependencies = { "nvim-web-devicons" },
-		config = function()
-			require("lackluster").setup({
-				tweak_ui = {
-					disable_undercurl = true,
-					enable_end_of_buffer = false,
-				},
-			})
-		end,
-	},
-	{
-		"rose-pine/neovim",
-		name = "rose-pine",
-		config = function()
-			require("rose-pine").setup({
-				variant = "moon",
-				styles = {
-					bold = true,
-					italic = true,
-					transparency = true,
-				},
-				highlight_groups = {
-					TelescopeBorder = { fg = "highlight_high", bg = "none" },
-					TelescopeNormal = { bg = "none" },
-					TelescopePromptNormal = { bg = "base" },
-					TelescopeResultsNormal = { fg = "subtle", bg = "none" },
-					TelescopeSelection = { fg = "text", bg = "base" },
-					TelescopeSelectionCaret = { fg = "rose", bg = "rose" },
-				},
-			})
-			-- vim.cmd("colorscheme rose-pine")
-			-- ColorMyPencils("rose-pine")
-		end,
-	},
-
-	{
-		"aktersnurra/no-clown-fiesta.nvim",
-		name = "no-clown-fiesta",
-		config = function()
-			require("no-clown-fiesta").setup({
-				transparent = true,
-				styles = {
-					comments = {},
-					keywords = {},
-					functions = {},
-					variables = {},
-					type = { bold = true },
-					lsp = { underline = true },
-				},
-			})
-		end,
-	},
+	}
 }

@@ -21,12 +21,6 @@ return {
         enable_rename = true,
         enable_close_on_slash = false,
       },
-      -- Teach autotag to treat `templ` like html
-      aliases = {
-        templ = "html",
-      },
-      -- Use per_filetype to tweak behavior later if needed
-      -- per_filetype = { html = { enable_close = true } },
     })
   end,
 }

@@ -3,9 +3,9 @@ return {
 	version = "*",
 	opts = {},
 	config = function()
-		require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
-		require("which-key").add({
-			{ "gw", "<CMD>:HopWord<CR>", desc = "Navigate the buffer", icon = "", mode = "n" },
-		})
+		local hop = require("hop")
+		hop.setup({ keys = "etovxqpdygfblzhckisuran" })
+
+		vim.keymap.set("n", "gw", "<cmd>HopWord<CR>", { desc = "Navigate the buffer" })
 	end,
 }

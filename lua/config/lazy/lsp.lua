@@ -196,16 +196,6 @@ return {
 			}),
 		})
 
-		local signs = {
-			{ name = "DiagnosticSignError", text = "E" },
-			{ name = "DiagnosticSignWarn", text = "W" },
-			{ name = "DiagnosticSignHint", text = "A" },
-			{ name = "DiagnosticSignInfo", text = "I" },
-		}
-
-		for _, sign in ipairs(signs) do
-			vim.fn.sign_define(sign.name, { texthl = sign.name, text = sign.text, numhl = "" })
-		end
 
 		vim.diagnostic.config({
 			update_in_insert = true,
@@ -220,90 +210,55 @@ return {
 			},
 		})
 
-		require("which-key").add({
-			{
-				"<leader><leader>",
-				function()
-					require("lsp_lines").toggle()
-				end,
-				desc = "Toggle line diagnostics",
-				mode = "n",
-			},
-			{ mode = "n" },
-			{
-				"gd",
-				function()
-					vim.lsp.buf.definition()
-				end,
-				desc = "Go to Definition",
-			},
-			{
-				"K",
-				function()
-					vim.lsp.buf.hover()
-				end,
-				desc = "Hover Information",
-			},
-			{ "<leader>v", group = "LSP Actions" },
-			{
-				"<leader>vws",
-				function()
-					vim.lsp.buf.workspace_symbol()
-				end,
-				desc = "Workspace Symbol",
-			},
-			{
-				"<leader>vd",
-				function()
-					vim.diagnostic.open_float()
-				end,
-				desc = "Open Diagnostic Float",
-			},
-			{
-				"<leader>ca",
-				function()
-					vim.lsp.buf.code_action()
-				end,
-				desc = "Code Action",
-			},
-			{
-				"<leader>vrr",
-				function()
-					vim.lsp.buf.references()
-				end,
-				desc = "Find References",
-			},
-			{
-				"<leader>vrn",
-				function()
-					vim.lsp.buf.rename()
-				end,
-				desc = "Rename Symbol",
-			},
-			{
-				"[d",
-				function()
-					vim.diagnostic.goto_next()
-				end,
-				desc = "Next Diagnostic",
-			},
-			{
-				"]d",
-				function()
-					vim.diagnostic.goto_prev()
-				end,
-				desc = "Previous Diagnostic",
-			},
+		local map = vim.keymap.set
 
-			-- Insert mode LSP keymaps
-			{ mode = "i" },
-			{
-				"<C-h>",
-				function()
-					vim.lsp.buf.signature_help()
-				end,
-				desc = "Signature Help",
-			},
-		})
+		map("n", "<leader><leader>", function()
+			require("lsp_lines").toggle()
+		end, { desc = "Toggle line diagnostics" })
+
+		map("n", "gd", function()
+			vim.lsp.buf.definition()
+		end, { desc = "Go to Definition" })
+
+		map("n", "<leader>h", function()
+			vim.lsp.buf.hover()
+		end, { desc = "Hover Information" })
+
+
+		map("n", "<leader>r", function()
+		  vim.cmd.FormatWrite()
+		end, { desc = "Format code" })
+
+		map("n", "<leader>vws", function()
+			vim.lsp.buf.workspace_symbol()
+		end, { desc = "Workspace Symbol" })
+
+		map("n", "<leader>vd", function()
+			vim.diagnostic.open_float()
+		end, { desc = "Open Diagnostic Float" })
+
+		map("n", "<leader>ca", function()
+			vim.lsp.buf.code_action()
+		end, { desc = "Code Action" })
+
+		map("n", "<leader>vrr", function()
+			vim.lsp.buf.references()
+		end, { desc = "Find References" })
+
+		map("n", "<leader>vrn", function()
+			vim.lsp.buf.rename()
+		end, { desc = "Rename Symbol" })
+
+		map("n", "[d", function()
+			vim.diagnostic.goto_next()
+		end, { desc = "Next Diagnostic" })
+
+		map("n", "]d", function()
+			vim.diagnostic.goto_prev()
+		end, { desc = "Previous Diagnostic" })
+
+		map("i", "<C-h>", function()
+			vim.lsp.buf.signature_help()
+		end, { desc = "Signature Help" })
 	end,
 }
