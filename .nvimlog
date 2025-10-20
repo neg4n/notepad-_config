@@ -1,8 +1,0 @@
-WRN 2025-10-17T20:47:43.646 ?.60648    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/ejmjin/nvim.60648.0
-WRN 2025-10-17T20:48:01.736 ?.60771    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/tP95Vm/nvim.60771.0
-WRN 2025-10-17T20:48:01.825 ?.60771    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/tP95Vm/fzf-lua.1760726881.60771.1
-WRN 2025-10-17T20:48:22.877 ?.60928    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/YGktTk/nvim.60928.0
-WRN 2025-10-17T20:48:22.909 ?.60928    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/YGktTk/fzf-lua.1760726902.60928.1
-WRN 2025-10-17T20:49:06.253 ?.61101    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/BkVtZH/nvim.61101.0
-WRN 2025-10-17T20:49:29.024 ?.61374    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/8G4ZWy/nvim.61374.0
-WRN 2025-10-17T20:49:38.073 ?.61533    server_start:193: Failed to start server: operation not permitted: /var/folders/2g/m8b4_dd96zs33qr3yd1pfbyh0000gn/T/nvim.igorklepacki/l5iUQQ/nvim.61533.0
