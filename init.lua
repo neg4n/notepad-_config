@@ -1,8 +1,7 @@
 -- TODO:
--- 2. use enhanced bd in fzf buffer list ctrl + x
--- 3. create utility commands on fzf like copy current file path
--- 4. add lazygit
--- 5. configure better keymaps for blink.cmp
+-- 1. use enhanced bd in fzf buffer list ctrl + x
+-- 2. create utility commands on fzf like copy current file path
+-- 3. add lazygit? or rely only on mini git
 vim.g.mapleader = " "
 vim.opt.termguicolors = true
 vim.opt.ttyfast = true
@@ -51,7 +50,14 @@ local add, do_now, do_later = MiniDeps.add, MiniDeps.now, MiniDeps.later
 -- with the package manager (mini.deps) and they are not required as soon as possible.
 do_later(function()
   require("mini.pairs").setup()
-  require("mini.notify").setup()
+
+  do
+    require("mini.notify").setup()
+    vim.keymap.set("n", "<leader>n", function()
+      MiniNotify.show_history()
+    end, { desc = "Show notifications history" })
+  end
+
   require("mini.git").setup()
 
   do
@@ -67,7 +73,7 @@ do_later(function()
         local buf = U.buffer.resolve(o.fargs[1])
         local ok = MiniBufremove.delete(buf, o.bang or false)
         if ok then
-          vim.notify("Deleted buffer " .. buf)
+          vim.notify "Deleted current buffer"
         end
       end,
       usercmd = {
