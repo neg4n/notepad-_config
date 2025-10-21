@@ -2,6 +2,13 @@
 -- 1. use enhanced bd in fzf buffer list ctrl + x
 -- 2. create utility commands on fzf like copy current file path
 -- 3. add lazygit? or rely only on mini git
+-- 4. resolve bat previewer not scrolling to the highlighted line in fzf live ripgrep
+-- 5. register why mason registry does not see some of the servers from time to time
+--    (probably related to the registry refresh, potentially it should be cached for
+--    1h (cronjob? lockfile with ttl?)) and invalidated with each neovim start exceeding
+--    this time
+-- 6. improve gd as go to definition, it was working in previous config but now it just 
+--    goes to the module import when triggering on called function name in JS/JSX/TS/TSX
 vim.g.mapleader = " "
 vim.opt.termguicolors = true
 vim.opt.ttyfast = true
@@ -187,7 +194,7 @@ do_now(function()
   local caps = vim.tbl_deep_extend("force", builtin, blink)
 
   require("mason-lspconfig").setup {
-    ensure_installed = { "lua_ls", "vtsls", "biome", "stylua", "prettierd" },
+    ensure_installed = { "lua_ls", "vtsls", "biome", "stylua", "prettierd", "tailwindcss-language-server"  },
     automatic_enable = true,
   }
 
