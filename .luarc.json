@@ -1,0 +1,5 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "diagnostics": { "globals": ["vim", "MiniDeps", "MiniNotify", "MiniBufremove", "MiniMisc", "FzfLua"] },
+  "workspace": { "checkThirdParty": false }
+}
