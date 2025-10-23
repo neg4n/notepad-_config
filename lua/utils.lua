@@ -1,97 +1,6 @@
+local fun = require "fun"
+
 local U = {}
-
----@param t table
----@return table
-local function shallow_clone(t)
-  if type(t) ~= "table" then
-    return t
-  end
-  local out = {}
-  for k, v in pairs(t) do
-    out[k] = v
-  end
-  return out
-end
-
----@param keys string|string[]
----@return string[]
-local function as_list(keys)
-  if type(keys) == "string" then
-    return { keys }
-  end
-  assert(type(keys) == "table", "utils.tbl: keys must be a string or table")
-  return keys
-end
-
---- Chainable table wrapper.
---- Methods (all chainable unless noted):
----   :map(keys, value, opts?)         -> assign same `value` (function or any value) to many keys
----   :map_func(keys, fn, opts?)       -> alias of :map(keys, fn, opts)
----   :map_tbl(keys, tbl, opts?)       -> alias of :map(keys, tbl, opts) with default clone=true
----   :set(key, value, opts?)          -> single-key version of :map
----   :result()                        -> returns the underlying mutated table (non-chain)
----
---- opts:
----   - skip_existing:boolean? (default false)  do not overwrite if key already set
----   - clone:boolean?         (default false for :map, true for :map_tbl)
----                             when assigning tables, shallow-clone per key to avoid shared refs
----@param source table
-function U.tbl(source)
-  assert(type(source) == "table", "utils.tbl: source must be a table")
-  local W = { _src = source }
-
-  --- core impl
-  ---@param keys string|string[]
-  ---@param value any
-  ---@param opts? { skip_existing?: boolean, clone?: boolean }
-  function W:map(keys, value, opts)
-    local o = opts or {}
-    local list = as_list(keys)
-    for _, k in ipairs(list) do
-      if not (o.skip_existing and self._src[k] ~= nil) then
-        if o.clone and type(value) == "table" then
-          self._src[k] = shallow_clone(value)
-        else
-          self._src[k] = value
-        end
-      end
-    end
-    return self
-  end
-
-  --- isomorphic alias (function case)
-  ---@param keys string|string[]
-  ---@param fn   function
-  ---@param opts? { skip_existing?: boolean, clone?: boolean }
-  function W:map_func(keys, fn, opts)
-    assert(type(fn) == "function", "utils.tbl.map_func: fn must be a function")
-    return self:map(keys, fn, opts)
-  end
-
-  --- isomorphic alias (table/value case) with clone defaulting to true
-  ---@param keys string|string[]
-  ---@param tbl  table|any
-  ---@param opts? { skip_existing?: boolean, clone?: boolean }
-  function W:map_tbl(keys, tbl, opts)
-    local o = opts or {}
-    if o.clone == nil then
-      o.clone = true
-    end
-    return self:map(keys, tbl, o)
-  end
-
-  --- single-key sugar
-  function W:set(key, value, opts)
-    return self:map({ key }, value, opts)
-  end
-
-  --- finalize
-  function W:result()
-    return self._src
-  end
-
-  return W
-end
 
 U.buffer = (function()
   local B = {}
@@ -154,224 +63,86 @@ U.fs = (function()
     pcall(uv.fs_unlink, path)
   end
 
+  F.path = (function()
+    local FP = {}
+
+    ---@class ShortenOpts
+    ---@field keep_last integer?  -- how many last segments to keep unshortened (default 1)
+    ---@field preserve_tilde boolean? -- keep leading "~" untouched (default true)
+    ---@field preserve_dot_segments boolean? -- keep "." and ".." untouched (default true)
+
+    ---@param path string
+    ---@param opts ShortenOpts|nil
+    ---@return string
+    FP.shorten = function(path, opts)
+      assert(type(path) == "string", "path must be a string")
+
+      opts = opts or {}
+      local keep_last = opts.keep_last or 1
+      local preserve_tilde = opts.preserve_tilde ~= false
+      local preserve_dot_segments = opts.preserve_dot_segments ~= false
+
+      if path == "" or path == "/" then
+        return path
+      end
+
+      local is_abs = path:sub(1, 1) == "/"
+      local has_trailing = path:sub(-1) == "/" and path ~= "/"
+
+      local parts = {}
+      for seg in path:gmatch "[^/]+" do
+        table.insert(parts, seg)
+      end
+      local n = #parts
+      if n == 0 then
+        return is_abs and "/" or ""
+      end
+
+      -- Optionally preserve a leading tilde as its own segment
+      if preserve_tilde and parts[1] == "~" then
+        -- do nothing, leave it as is
+      end
+
+      local mapped = fun.iter(parts):enumerate():map(function(i, seg)
+        if i > n - keep_last then
+          return seg
+        end
+
+        if preserve_dot_segments and (seg == "." or seg == "..") then
+          return seg
+        end
+
+        if preserve_tilde and i == 1 and seg == "~" then
+          return seg
+        end
+        -- default: shorten to first UTF-8 codepoint
+        -- (for simplicity take byte slice; Lua strings are bytes; adequate for ASCII paths)
+        return seg:sub(1, 1)
+      end)
+
+      local joined = mapped:reduce(function(acc, seg)
+        if acc == "" then
+          return seg
+        else
+          return acc .. "/" .. seg
+        end
+      end, "")
+
+      if is_abs then
+        joined = "/" .. joined
+      end
+      if has_trailing then
+        joined = joined .. "/"
+      end
+      return joined
+    end
+
+    return FP
+  end)()
+
   return F
 end)()
 
-U.scheduling = (function()
-  local S = {}
-
-  local uv = vim.uv or vim.loop
-
-  local LOCK_DIR = (function()
-    local p = vim.fs.joinpath(vim.fn.stdpath "data", "locks")
-    U.fs.ensure_dir(p)
-    return p
-  end)()
-
-  --Clears all locks from the directory they live
-  S.clear_all_locks = function()
-    vim.notify(LOCK_DIR)
-    U.fs.unlink(LOCK_DIR)
-  end
-
-  local function sanitize(name)
-    return (tostring(name):gsub("[^%w_.-]", "-"))
-  end
-  local function lock_path(name)
-    return vim.fs.joinpath(LOCK_DIR, sanitize(name) .. ".lock")
-  end
-  local function lease_name(name, exp)
-    return sanitize(name) .. ".lease." .. tostring(exp)
-  end
-  local function lease_prefix(name)
-    return sanitize(name) .. ".lease."
-  end
-
-  ---Return true if TTL has expired or lock missing.
-  ---@param name string
-  ---@param ttl integer
-  ---@return boolean due
-  function S.due(name, ttl)
-    local p = lock_path(name)
-    local st = uv.fs_stat(p)
-    if not st or not st.mtime then
-      return true
-    end
-    local sec = type(st.mtime) == "table" and st.mtime.sec or st.mtime
-    return (os.time() - (sec or 0)) >= ttl
-  end
-
-  ---Touch lock mtime (create if missing).
-  ---@param name string
-  ---@return boolean ok
-  function S.touch(name)
-    local p = lock_path(name)
-    if not uv.fs_stat(p) then
-      if not U.fs.atomic_create(p) then
-        return false
-      end
-    end
-    return U.fs.utime(p, os.time())
-  end
-
-  local function clean_stale_leases(name)
-    local pref = lease_prefix(name)
-    for entry, t in vim.fs.dir(LOCK_DIR) do
-      if t == "file" and vim.startswith(entry, pref) then
-        local ts = tonumber(entry:sub(#pref + 1)) or 0
-        if ts <= os.time() then
-          U.fs.unlink(vim.fs.joinpath(LOCK_DIR, entry))
-        end
-      end
-    end
-  end
-
-  local function acquire_lease(name, lease_timeout)
-    clean_stale_leases(name)
-    local exp = os.time() + lease_timeout
-    local lp = vim.fs.joinpath(LOCK_DIR, lease_name(name, exp))
-    return U.fs.atomic_create(lp), lp
-  end
-
-  local function release_lease(path)
-    U.fs.unlink(path)
-  end
-
-  ---@class TTLOnceOpts
-  ---@field when? boolean|fun():boolean        # Gate; default true.
-  ---@field autotouch? boolean                 # Auto-touch on success; default true.
-  ---@field lease_timeout? integer             # Seconds; default 300.
-  ---@field wait_for_lease? boolean|integer    # false|true|seconds; default false.
-  ---@field notify? boolean                    # Show notifications; default true.
-
-  ---@alias TTLOnceReason
-  ---| '"ok"'
-  ---| '"failed"'
-  ---| '"pending"'
-  ---| '"busy"'
-  ---| '"error"'
-  ---| '"fresh"'
-  ---| '"gate-false"'
-
-  ---@alias TTLOnceFnSync fun():boolean
-  ---@alias TTLOnceFnAsync fun(done: fun(success:boolean))
-  ---@alias TTLOnceTask TTLOnceFnAsync|TTLOnceFnSync
-
-  ---Run at most once per TTL across Neovim instances.
-  ---Sync: returns true/false.  Async: call the provided done(true|false).
-  ---@param name string
-  ---@param ttl integer
-  ---@param fn TTLOnceTask
-  ---@param opts? TTLOnceOpts
-  ---@return boolean ran, TTLOnceReason reason
-  ---@overload fun(name: string, ttl: integer, fn: TTLOnceFnSync,  opts?: TTLOnceOpts): boolean, TTLOnceReason
-  ---@overload fun(name: string, ttl: integer, fn: TTLOnceFnAsync, opts?: TTLOnceOpts): boolean, TTLOnceReason
-  function S.once(name, ttl, fn, opts)
-    opts = opts or {}
-    local when = opts.when
-    local autotouch = (opts.autotouch ~= false)
-    local lease_timeout = tonumber(opts.lease_timeout or 300) or 300
-    local notify = (opts.notify ~= false)
-    local wait_for_lease = (opts.wait_for_lease ~= nil)
-
-    if when ~= nil then
-      if type(when) == "function" then
-        local ok, res = pcall(when)
-        if not ok or not res then
-          return false, "gate-false"
-        end
-      elseif not when then
-        return false, "gate-false"
-      end
-    end
-
-    if not S.due(name, ttl) then
-      return false, "fresh"
-    end
-
-    local lease_path
-    local started = os.time()
-    local function try()
-      local ok, lp = acquire_lease(name, lease_timeout)
-      if ok then
-        lease_path = lp
-        return true
-      end
-      if not wait_for_lease then
-        return false
-      end
-      local timeout = (wait_for_lease == true) and lease_timeout or (tonumber(wait_for_lease) or 0)
-      while (os.time() - started) < timeout do
-        vim.wait(100, function()
-          clean_stale_leases(name)
-          local ok2, lp2 = acquire_lease(name, lease_timeout)
-          if ok2 then
-            lease_path = lp2
-            return true
-          end
-          return false
-        end, 10, false)
-        if lease_path then
-          return true
-        end
-      end
-      return false
-    end
-    if not try() then
-      return false, "busy"
-    end
-
-    local function log(msg, lvl)
-      if notify then
-        vim.schedule(function()
-          vim.notify("[ttl:" .. name .. "] " .. msg, lvl or vim.log.levels.INFO)
-        end)
-      end
-    end
-
-    local done_called = false
-    local function done(success)
-      if done_called then
-        return
-      end
-      done_called = true
-      if success and autotouch then
-        S.touch(name)
-      end
-      if lease_path then
-        release_lease(lease_path)
-      end
-    end
-
-    local ok, ret_or_err = pcall(fn, done)
-    if not ok then
-      if lease_path then
-        release_lease(lease_path)
-      end
-      log("task crashed: " .. tostring(ret_or_err), vim.log.levels.WARN)
-      return false, "error"
-    end
-
-    if type(ret_or_err) == "boolean" then
-      if ret_or_err and autotouch then
-        S.touch(name)
-      end
-      if lease_path then
-        release_lease(lease_path)
-      end
-      return true, ret_or_err and "ok" or "failed"
-    else
-      return true, "pending"
-    end
-  end
-
-  return S
-end)()
-
--- overcmd: override built-ins via guarded command-line abbreviations
--- - Creates an uppercase canonical user command (e.g. :Bdelete).
--- - Rewrites lowercase built-ins/prefixes (bd, bde, bdel, ...) to it.
--- - Uses Lua "ca" keymaps on Neovim ≥ 0.10; falls back to :cabbrev otherwise.
 U.overcmd = (function()
   local O = {}
   local ACTIVE = {} -- [canon] = { commands={}, abbrevs={}, using_ca=bool }
@@ -428,24 +199,75 @@ U.overcmd = (function()
     ACTIVE[canon] = nil
   end
 
+  ---@class OverrideOpts
+  ---@brief [[
+  ---Override one or more Ex commands by installing smart command‑line abbreviations
+  ---that expand selected prefixes to a canonical user command implemented in Lua.
+  ---Works on Neovim ≥ 0.10 (cmdline keymaps) and older Vimscript-style `:cabbrev`.
+  ---
+  ---Example:
+  ---  O.override {
+  ---    from = { "bdelete", "bd" },
+  ---    canon = "Bdelete",
+  ---    handler = function(o)
+  ---      -- o has fields like .args, .bang, .range, .fargs (see :h nvim_create_user_command())
+  ---      require("mini.bufremove").delete(tonumber(o.args) or 0, o.bang)
+  ---    end,
+  ---    usercmd = { bang = true, nargs = "?", complete = "buffer", desc = "Delete buffer" },
+  ---    min_prefix_len = 2,
+  ---    also_aliases = { "bdel" },
+  ---    install_late = false,
+  ---  }
+  ---]]
+  ---@field from string|string[]  @ One or more source command tokens to override (e.g. "bd" or {"bdelete","bd"}).
+  ---@field canon string          @ Canonical **User** command name to install (must start with uppercase; see :h nvim_create_user_command()).
+  ---@field handler fun(o:table)  @ Lua callback invoked by the canonical command. Called with a single opts table from `nvim_create_user_command()` (fields: name, bang, args, fargs, range, count, mods, etc.).
+  ---@field usercmd? table        @ Options forwarded to `nvim_create_user_command()`; common keys: `bang:boolean`, `nargs:string`, `complete:string|fun`, `desc:string`, `range`, `count`, etc.
+  ---@field min_prefix_len? integer  @ Minimum prefix length to generate abbreviations for each `from` token (default: 2). For example, from="bdelete" with min_prefix_len=2 generates `bd`, `bde`, …, `bdelete`.
+  ---@field also_aliases? string[]   @ Additional literal tokens to treat like `from` (merged before prefix expansion).
+  ---@field install_late? boolean    @ If true, installation is scheduled via `vim.schedule()` (default: false).
+  ---@field enter_fallback? any      @ Deprecated/ignored placeholder to avoid breaking older configs.
+
   --- Override Ex commands with a custom handler.
-  -- opts = {
-  --   from = "bdelete" | {"bdelete","bd"},
-  --   canon = "Bdelete",
-  --   handler = function(o) ... end,
-  --   usercmd = { bang=true, nargs="?", complete="buffer", desc="..." },
-  --   min_prefix_len = 2,
-  --   also_aliases = {...},
-  --   install_late = false,
-  --   enter_fallback = (deprecated, ignored),
-  -- }
+  ---@param opts OverrideOpts
+  ---@return fun() undo  @Call to remove the override (delegates to O.teardown).
   function O.override(opts)
-    vim.validate {
-      opts = { opts, "table" },
-      from = { opts.from, { "string", "table" } },
-      canon = { opts.canon, "string" },
-      handler = { opts.handler, "function" },
-    }
+    assert(type(opts) == "table", "opts must be a table")
+    assert(opts.from ~= nil, "from is required")
+
+    if type(opts.from) == "string" then
+    elseif type(opts.from) == "table" then
+      fun.iter(opts.from):for_each(function(v)
+        assert(type(v) == "string", "each from must be a string")
+      end)
+    else
+      assert(false, "from must be a string or table of strings")
+    end
+
+    assert(type(opts.canon) == "string", "canon must be a string")
+
+    assert(type(opts.handler) == "function", "handler must be a function")
+
+    -- Validate optional fields if present
+    if opts.usercmd ~= nil then
+      assert(type(opts.usercmd) == "table", "usercmd must be a table")
+    end
+
+    if opts.min_prefix_len ~= nil then
+      assert(type(opts.min_prefix_len) == "number", "min_prefix_len must be a number")
+      assert(opts.min_prefix_len == math.floor(opts.min_prefix_len), "min_prefix_len must be an integer")
+    end
+
+    if opts.also_aliases ~= nil then
+      assert(type(opts.also_aliases) == "table", "also_aliases must be a table")
+      fun.iter(opts.also_aliases):for_each(function(v)
+        assert(type(v) == "string", "each also_aliases must be a string")
+      end)
+    end
+
+    if opts.install_late ~= nil then
+      assert(type(opts.install_late) == "boolean", "install_late must be a boolean")
+    end
 
     if ACTIVE[opts.canon] then
       O.teardown(opts.canon)
@@ -522,6 +344,164 @@ U.overcmd = (function()
   return O
 end)()
 
+function U.fzf_lua_utils(fzf_instance)
+  local FL = {}
+
+  FL.live_ripgrep = function(opts)
+    opts = opts or {}
+
+    opts.prompt = opts.prompt or "rg>"
+    opts.file_icons = true
+    opts.color_icons = true
+    opts.actions = fzf_instance.defaults.actions.files
+    opts.previewer = nil
+
+    if opts.cwd then
+      opts.cwd = opts.cwd
+    end
+
+    opts.fzf_opts = vim.tbl_extend("force", opts.fzf_opts or {}, {
+      ["--delimiter"] = ":",
+      ["--nth"] = "4..", -- keep the match text as the shown part (optional)
+      ["--preview-window"] = "right:60%:border-left:wrap:+{2}", -- jump preview to line {2}
+      ["--preview"] = [[bat --style=changes --theme=murphy --color=always --highlight-line {2} {1}]],
+    })
+
+    opts.fn_transform = nil
+
+    local function build_search_dirs_arg()
+      local dirs = opts.search_dirs
+
+      if not dirs or (type(dirs) == "table" and #dirs == 0) then
+        return ""
+      end
+
+      if type(dirs) == "string" then
+        dirs = { dirs }
+      end
+
+      local joined = fun.iter(dirs):map(vim.fn.shellescape):reduce(function(acc, dir)
+        return acc .. " " .. dir
+      end, "")
+
+      return " " .. joined
+    end
+
+    return fzf_instance.fzf_live(function(args)
+      local q = args[1] or ""
+      -- NOTE: flags → `--` → PATTERN → [PATH...]
+      return "rg --column --line-number --no-heading --color=always --smart-case --max-columns=4096 -- "
+        .. vim.fn.shellescape(q)
+        .. build_search_dirs_arg()
+    end, opts)
+  end
+
+  FL.pick_dirs_then_live_ripgrep = function(opts)
+    opts = opts or {}
+
+    local uv = vim.uv or vim.loop
+    local function realpath(p)
+      return (uv.fs_realpath and uv.fs_realpath(p)) or vim.fn.fnamemodify(p, ":p")
+    end
+
+    local cwd = realpath(opts.cwd or vim.loop.cwd())
+    local root = opts.list_root or "."
+    local depth = opts.tree_depth or 2
+    local root_abs = realpath(root)
+
+    -- prefer a path relative to `cwd` when it’s inside `cwd`
+    local function prefer_rel_to_cwd(abs)
+      abs = realpath(abs)
+      -- modern API
+      if vim.fs and vim.fs.relpath then
+        local rel = vim.fs.relpath(abs, cwd)
+        if rel and rel ~= "" then
+          return (rel:gsub("^%./", ""):gsub("/+$", ""))
+        end
+      end
+      -- fallback: strip prefix if inside cwd
+      if abs:sub(1, #cwd + 1) == (cwd .. "/") then
+        return abs:sub(#cwd + 2):gsub("/+$", "")
+      end
+      return abs
+    end
+
+    -- dirs to exclude from the picker (fd side)
+    local excludes = opts.excludes or { ".git", "node_modules", ".cache", "dist", "build", ".venv", ".next", "target" }
+
+    -- fd command (directories only), paths relative to `root`
+    local exclude_args = fun
+      .iter(excludes)
+      :map(function(e)
+        return ("-E %s"):format(e)
+      end)
+      :totable()
+
+    local fd_cmd = table.concat({
+      "fd",
+      "-t d",
+      "-H", -- include dot dirs (drop if undesired)
+      "--strip-cwd-prefix",
+      "--base-directory",
+      vim.fn.shellescape(root_abs),
+      table.concat(exclude_args, " "),
+      ".",
+    }, " ")
+
+    -- lstr preview: use ROOT because fd output is relative to ROOT
+    local lstr_opts = opts.lstr_opts or { "-a", "-g", "--icons", ("-L %d"):format(depth) }
+    local preview = ([[bash -lc '
+set -e
+PATH_TO="%s/%s"
+exec lstr %s -- "$PATH_TO"
+']]):format(root_abs, "{}", table.concat(lstr_opts, " "))
+
+    fzf_instance.fzf_exec(fd_cmd, {
+      cwd = cwd, -- run the picker from cwd
+      prompt = "dirs> ",
+      file_icons = true,
+      color_icons = true,
+      fzf_opts = {
+        ["--multi"] = "",
+        ["--header"] = "Select dir(s) → <Enter> to grep • <Tab> multi-select",
+        ["--preview-window"] = "right,60%,border-left,wrap",
+        ["--preview"] = preview,
+      },
+      actions = {
+        ["default"] = function(selected_dirs)
+          if not selected_dirs or #selected_dirs == 0 then
+            return
+          end
+
+          local search_dirs = fun
+            .iter(selected_dirs)
+            :map(function(line)
+              local abs = realpath(root_abs .. "/" .. line)
+              return prefer_rel_to_cwd(abs)
+            end)
+            :totable()
+
+          FL.live_ripgrep(vim.tbl_extend("force", opts, {
+            prompt = "rg " .. table.concat(
+              fun
+                .iter(search_dirs)
+                :map(function(path)
+                  return U.fs.path.shorten(path)
+                end)
+                :totable(),
+              ", "
+            ) .. ">",
+            search_dirs = search_dirs,
+            cwd = cwd,
+          }))
+        end,
+      },
+    })
+  end
+
+  return FL
+end
+
 function U.mason_lspconfig(mason_lspconfig_instance)
   local ML = {}
 
@@ -543,13 +523,17 @@ function U.mason_lspconfig(mason_lspconfig_instance)
     if vim.islist(packages) then
       for _, pkg in ipairs(packages) do
         local lsp = maps[pkg]
-        if lsp then table.insert(out, lsp) end
+        if lsp then
+          table.insert(out, lsp)
+        end
       end
     else
       for pkg, enabled in pairs(packages) do
         if enabled and type(pkg) == "string" then
           local lsp = maps[pkg]
-          if lsp then table.insert(out, lsp) end
+          if lsp then
+            table.insert(out, lsp)
+          end
         end
       end
     end
@@ -572,13 +556,17 @@ function U.mason_lspconfig(mason_lspconfig_instance)
     if vim.islist(servers) then
       for _, lsp in ipairs(servers) do
         local pkg = maps[lsp]
-        if pkg then table.insert(out, pkg) end
+        if pkg then
+          table.insert(out, pkg)
+        end
       end
     else
       for lsp, enabled in pairs(servers) do
         if enabled and type(lsp) == "string" then
           local pkg = maps[lsp]
-          if pkg then table.insert(out, pkg) end
+          if pkg then
+            table.insert(out, pkg)
+          end
         end
       end
     end
@@ -587,6 +575,5 @@ function U.mason_lspconfig(mason_lspconfig_instance)
 
   return ML
 end
-
 
 return U

@@ -1,3 +1,4 @@
+local fun = require "fun"
 -- TODO:
 -- 1. use enhanced bd in fzf buffer list ctrl + x
 -- 2. create utility commands on fzf like copy current file path
@@ -5,6 +6,8 @@
 -- 4. move the copy diagnostic utility as loosely coupled in @utils.lua
 -- 5. tidy up ripgrep plugin configuration
 -- 6. document everything in @utils.lua
+
+vim.cmd [[ colorscheme murphy ]]
 vim.g.mapleader = " "
 vim.opt.termguicolors = true
 vim.opt.ttyfast = true
@@ -226,18 +229,23 @@ add {
 
 do_now(function()
   local conform = require "conform"
-  local formatters_by_ft = {}
-  formatters_by_ft = require("utils")
-    .tbl(formatters_by_ft)
-    :map_func({ "javascript", "typescript", "javascriptreact", "typescriptreact" }, function(bufnr)
-      if conform.get_formatter_info("biome", bufnr).available then
-        return { "biome" }
-      else
-        return { "prettierd", "prettier", stop_after_first = true }
-      end
+
+  local formatters_by_ft = fun
+    .iter({ "javascript", "typescript", "javascriptreact", "typescriptreact" })
+    :map(function(ft)
+      return ft,
+        conform.get_formatter_info("biome").available and { "biome" } or {
+          "prettierd",
+          "prettier",
+          stop_after_first = true,
+        }
     end)
-    :set("lua", { "stylua" })
-    :result()
+    :foldl(function(acc, k, v)
+      acc[k] = v
+      return acc
+    end, {})
+
+  formatters_by_ft.lua = { "stylua" }
 
   conform.setup {
     formatters_by_ft = formatters_by_ft,
@@ -270,7 +278,7 @@ do_now(function()
     previewers = {
       bat = {
         cmd = "bat",
-        args = "--color=always --style=changes",
+        args = "--color=always --theme=murphy --style=changes",
       },
     },
     winopts = {
@@ -291,143 +299,9 @@ do_now(function()
     },
   }
 
-  _G.live_ripgrep = function(opts)
-    opts = opts or {}
-
-    -- overrides (keep old defaults if not provided)
-    opts.prompt = opts.prompt or "rg>"
-    opts.file_icons = true
-    opts.color_icons = true
-    opts.previewer = nil
-    -- allow running the command from a specific cwd
-    if opts.cwd then
-      opts.cwd = opts.cwd
-    end
-
-    opts.fzf_opts = vim.tbl_extend("force", opts.fzf_opts or {}, {
-      ["--delimiter"] = ":",
-      ["--nth"] = "4..", -- keep the match text as the shown part (optional)
-      ["--preview-window"] = "right:60%:border-left:wrap:+{2}", -- jump preview to line {2}
-      ["--preview"] = [[bat --style=changes --color=always --highlight-line {2} {1}]],
-    })
-
-    opts.fn_transform = nil
-
-    -- normalize search_dirs (string | {string,...}) → " -- <dir1> <dir2> ..."
-    local function build_search_dirs_arg()
-      local dirs = opts.search_dirs
-      if not dirs or (type(dirs) == "table" and #dirs == 0) then
-        return ""
-      end
-      if type(dirs) == "string" then
-        dirs = { dirs }
-      end
-      local esc = {}
-      for _, d in ipairs(dirs) do
-        table.insert(esc, vim.fn.shellescape(d))
-      end
-      return " " .. table.concat(esc, " ")
-    end
-    local search_dirs_arg = build_search_dirs_arg()
-
-    return fzf.fzf_live(function(args)
-      local q = args[1] or ""
-      -- NOTE: flags → `--` → PATTERN → [PATH...]
-      return "rg --column --line-number --no-heading --color=always --smart-case --max-columns=4096 -- "
-        .. vim.fn.shellescape(q)
-        .. search_dirs_arg
-    end, opts)
-  end
+  local fzf_utils = require("utils").fzf_lua_utils(fzf)
 
   -- Pick dir(s) with fd, preview via `lstr`, then run your live ripgrep in them.
-  _G.rg_pick_dirs_then_live = function(opts)
-    local fzf = require "fzf-lua"
-    opts = opts or {}
-
-    local uv = vim.uv or vim.loop
-    local function realpath(p)
-      return (uv.fs_realpath and uv.fs_realpath(p)) or vim.fn.fnamemodify(p, ":p")
-    end
-
-    local cwd = realpath(opts.cwd or vim.loop.cwd())
-    local root = opts.list_root or "."
-    local depth = opts.tree_depth or 2
-    local root_abs = realpath(root)
-
-    -- prefer a path relative to `cwd` when it’s inside `cwd`
-    local function prefer_rel_to_cwd(abs)
-      abs = realpath(abs)
-      -- modern API
-      if vim.fs and vim.fs.relpath then
-        local rel = vim.fs.relpath(abs, cwd)
-        if rel and rel ~= "" then
-          return (rel:gsub("^%./", ""):gsub("/+$", ""))
-        end
-      end
-      -- fallback: strip prefix if inside cwd
-      if abs:sub(1, #cwd + 1) == (cwd .. "/") then
-        return abs:sub(#cwd + 2):gsub("/+$", "")
-      end
-      return abs
-    end
-
-    -- dirs to exclude from the picker (fd side)
-    local excludes = opts.excludes or { ".git", "node_modules", ".cache", "dist", "build", ".venv", ".next", "target" }
-
-    -- fd command (directories only), paths relative to `root`
-    local E = {}
-    for _, e in ipairs(excludes) do
-      table.insert(E, ("-E %s"):format(e))
-    end
-    local fd_cmd = table.concat({
-      "fd",
-      "-t d",
-      "-H", -- include dot dirs (drop if undesired)
-      "--strip-cwd-prefix",
-      "--base-directory",
-      vim.fn.shellescape(root_abs),
-      table.concat(E, " "),
-      ".",
-    }, " ")
-
-    -- lstr preview: use ROOT because fd output is relative to ROOT
-    local lstr_opts = opts.lstr_opts or { "-a", "-g", "--icons", ("-L %d"):format(depth) }
-    local preview = ([[bash -lc '
-set -e
-PATH_TO="%s/%s"
-exec lstr %s -- "$PATH_TO"
-']]):format(root_abs, "{}", table.concat(lstr_opts, " "))
-
-    fzf.fzf_exec(fd_cmd, {
-      cwd = cwd, -- run the picker from cwd
-      prompt = "dirs> ",
-      file_icons = true,
-      color_icons = true,
-      fzf_opts = {
-        ["--multi"] = "",
-        ["--header"] = "Select dir(s) → <Enter> to grep • <Tab> multi-select",
-        ["--preview-window"] = "right,60%,border-left,wrap",
-        ["--preview"] = preview,
-      },
-      actions = {
-        ["default"] = function(selected)
-          if not selected or #selected == 0 then
-            return
-          end
-          local dirs = {}
-          for _, line in ipairs(selected) do
-            -- fd gives paths relative to ROOT; make absolute, then prefer relative to CWD
-            local abs = realpath(root_abs .. "/" .. line)
-            table.insert(dirs, prefer_rel_to_cwd(abs))
-          end
-          _G.live_ripgrep(vim.tbl_extend("force", opts, {
-            search_dirs = dirs, -- short paths when under `cwd`
-            cwd = cwd, -- rg runs from `cwd`, so results are short too
-          }))
-        end,
-      },
-    })
-  end
 
   local function _parse_diag_entry(entry)
     if type(entry) == "table" then
@@ -474,8 +348,8 @@ exec lstr %s -- "$PATH_TO"
   vim.keymap.set("n", "<leader>f", fzf.files, { desc = "Find files" })
   vim.keymap.set("n", "<leader>s", fzf.lsp_document_symbols, { desc = "Symbols" })
   vim.keymap.set("n", "<leader>b", fzf.buffers, { desc = "Navigate through open buffers" })
-  vim.keymap.set("n", "<leader>/", _G.live_ripgrep, { desc = "Live grep" })
-  vim.keymap.set("n", "<leader>?", _G.rg_pick_dirs_then_live, { desc = "Pick dirs then live ripgrep" })
+  vim.keymap.set("n", "<leader>/", fzf_utils.live_ripgrep, { desc = "Live grep" })
+  vim.keymap.set("n", "<leader>?", fzf_utils.pick_dirs_then_live_ripgrep, { desc = "Pick dirs then live ripgrep" })
 
   vim.keymap.set("n", "<leader>g", fzf.git_diff, { desc = "Git files" })
   vim.keymap.set("n", "<leader>vh", fzf.help_tags, { desc = "Help tags" })
