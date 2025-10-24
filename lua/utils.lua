@@ -225,28 +225,22 @@ U.overcmd = (function()
       :totable()
   end
 
-  local function del_user_cmd(name)
-    pcall(vim.api.nvim_del_user_command, name)
-  end
-  local function unset_abbrev(lhs)
-    pcall(vim.cmd, "cunabbrev " .. lhs)
-  end
-  local function del_cmdline_map(mode, lhs)
-    pcall(vim.keymap.del, mode, lhs)
-  end
-
   function O.teardown(canon)
     local rec = ACTIVE[canon]
     if not rec then
       return
     end
-    fun.iter(rec.commands or {}):for_each(del_user_cmd)
+    fun.iter(rec.commands or {}):for_each(function(name)
+      pcall(vim.api.nvim_del_user_command, name)
+    end)
     if rec.using_ca then
       fun.iter(rec.abbrevs or {}):for_each(function(lhs)
-        del_cmdline_map("ca", lhs)
+        pcall(vim.keymap.del, "ca", lhs)
       end)
     else
-      fun.iter(rec.abbrevs or {}):for_each(unset_abbrev)
+      fun.iter(rec.abbrevs or {}):for_each(function(lhs)
+        pcall(vim.cmd, "cunabbrev " .. lhs)
+      end)
     end
     ACTIVE[canon] = nil
   end
@@ -349,7 +343,7 @@ U.overcmd = (function()
       if rec.using_ca then
         -- Neovim ≥ 0.10: Lua cmdline abbreviation keymaps ("ca")
         fun.iter(lhses):for_each(function(lhs)
-          del_cmdline_map("ca", lhs) -- clear if present
+          pcall(vim.keymap.del, "ca", lhs) -- clear if present
           local expr = string.format(
             "(getcmdtype() == ':' && getcmdline() =~# '^\\s*%s\\(\\s\\|!\\|$\\)') ? '%s' : '%s'",
             lhs,
@@ -361,7 +355,7 @@ U.overcmd = (function()
         end)
       else
         fun.iter(lhses):for_each(function(lhs)
-          unset_abbrev(lhs)
+          pcall(vim.cmd, "cunabbrev " .. lhs)
           local cmd = string.format(
             "cabbrev <expr> %s (getcmdtype()==':' && getcmdline() =~# '^\\s*%s\\(\\s\\|!\\|$\\)') ? '%s' : '%s'",
             lhs,
@@ -387,9 +381,7 @@ U.overcmd = (function()
     end
   end
 
-  function O.status()
-    return ACTIVE
-  end
+  O.ACTIVE = ACTIVE
   return O
 end)()
 
