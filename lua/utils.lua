@@ -1,4 +1,6 @@
 local fun = require "fun"
+local uv = assert(vim.uv, "Neovim 0.11+ with vim.uv support is required")
+local fs = assert(vim.fs, "vim.fs API is required")
 
 local U = {}
 
@@ -27,20 +29,42 @@ end)()
 U.fs = (function()
   local F = {}
 
-  local uv = vim.uv or vim.loop
+  local DIR_MODE = 0x1ED -- 493 / 0755
 
-  ---Ensure directory exists (recursive).
-  ---@param dir string
-  ---@return boolean ok
+  ---Ensure a directory exists, creating parents as needed (best effort).
+  ---@param dir string Absolute or relative directory path.
+  ---@return boolean ok Directory exists or was created.
   function F.ensure_dir(dir)
-    local ok = pcall(vim.fn.mkdir, dir, "p")
-    return ok and true or false
+    assert(type(dir) == "string" and dir ~= "", "dir must be a non-empty string")
+
+    local stat = uv.fs_stat(dir)
+    if stat and stat.type == "directory" then
+      return true
+    end
+
+    local parent = fs.dirname(dir)
+    if parent and parent ~= "" and parent ~= "." and parent ~= dir then
+      if not F.ensure_dir(parent) then
+        return false
+      end
+    end
+
+    local ok, err = uv.fs_mkdir(dir, DIR_MODE)
+    if ok then
+      return true
+    end
+    if err and err:match("EEXIST") then
+      return true
+    end
+    return false
   end
 
-  ---Create a file atomically with O_EXCL (zero bytes).
-  ---@param path string
-  ---@return boolean ok
+  ---Create a zero-byte file with O_EXCL semantics.
+  ---@param path string Absolute or relative file path.
+  ---@return boolean ok File was created exclusively.
   function F.atomic_create(path)
+    assert(type(path) == "string" and path ~= "", "path must be a non-empty string")
+
     local fd = uv.fs_open(path, "wx", 420)
     if not fd then
       return false
@@ -49,18 +73,49 @@ U.fs = (function()
     return true
   end
 
-  ---Update atime/mtime to a given unix time (seconds).
-  ---@param path string
-  ---@param ts integer
-  ---@return boolean ok
+  ---Update both atime and mtime to the provided UNIX timestamp (seconds).
+  ---@param path string Absolute or relative file path.
+  ---@param ts number UNIX timestamp in seconds.
+  ---@return boolean ok Times were updated.
   function F.utime(path, ts)
+    assert(type(path) == "string" and path ~= "", "path must be a non-empty string")
+    assert(type(ts) == "number", "ts must be a number")
+
     return uv.fs_utime(path, ts, ts) and true or false
   end
 
-  ---Best-effort unlink.
-  ---@param path string
+  ---Best-effort unlink of the provided path.
+  ---@param path string Absolute or relative file path.
+  ---@return boolean ok Removal succeeded or path absent.
   function F.unlink(path)
-    pcall(uv.fs_unlink, path)
+    assert(type(path) == "string" and path ~= "", "path must be a non-empty string")
+
+    local ok, err = uv.fs_unlink(path)
+    if ok then
+      return true
+    end
+    if err and err:match("ENOENT") then
+      return true
+    end
+    return false
+  end
+
+  ---Resolve a path to its absolute canonical form (best effort).
+  ---@param path string Absolute or relative path.
+  ---@return string resolved Canonical absolute path or normalized fallback.
+  function F.realpath(path)
+    assert(type(path) == "string" and path ~= "", "path must be a non-empty string")
+
+    local resolved = uv.fs_realpath(path)
+    if resolved then
+      return resolved
+    end
+
+    local normalized = fs.normalize(path)
+    if fs.isabs(normalized) then
+      return normalized
+    end
+    return fs.joinpath(uv.cwd(), normalized)
   end
 
   F.path = (function()
@@ -393,22 +448,17 @@ function U.fzf_lua_utils(fzf_instance)
   FL.pick_dirs_then_live_ripgrep = function(opts)
     opts = opts or {}
 
-    local uv = vim.uv or vim.loop
-    local function realpath(p)
-      return (uv.fs_realpath and uv.fs_realpath(p)) or vim.fn.fnamemodify(p, ":p")
-    end
-
-    local cwd = realpath(opts.cwd or vim.loop.cwd())
+    local cwd = U.fs.realpath(opts.cwd or uv.cwd())
     local root = opts.list_root or "."
     local depth = opts.tree_depth or 2
-    local root_abs = realpath(root)
+    local root_abs = U.fs.realpath(root)
 
     -- prefer a path relative to `cwd` when it’s inside `cwd`
     local function prefer_rel_to_cwd(abs)
-      abs = realpath(abs)
+      abs = U.fs.realpath(abs)
       -- modern API
-      if vim.fs and vim.fs.relpath then
-        local rel = vim.fs.relpath(abs, cwd)
+      if fs.relpath then
+        local rel = fs.relpath(abs, cwd)
         if rel and rel ~= "" then
           return (rel:gsub("^%./", ""):gsub("/+$", ""))
         end
@@ -470,7 +520,7 @@ exec lstr %s -- "$PATH_TO"
           local search_dirs = fun
             .iter(selected_dirs)
             :map(function(line)
-              local abs = realpath(root_abs .. "/" .. line)
+              local abs = U.fs.realpath(root_abs .. "/" .. line)
               return prefer_rel_to_cwd(abs)
             end)
             :totable()
