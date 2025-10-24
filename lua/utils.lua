@@ -158,15 +158,16 @@ U.overcmd = (function()
 
   local function prefixes(token, min_len)
     min_len = min_len or 1
-    local out, seen = {}, {}
-    for i = math.max(min_len, 1), #token do
-      local p = token:sub(1, i)
-      if not seen[p] then
-        out[#out + 1] = p
-        seen[p] = true
-      end
+    local start_i = math.max(min_len, 1)
+    if start_i > #token then
+      return {}
     end
-    return out
+    return fun
+      .iter(fun.range(start_i, #token))
+      :map(function(i)
+        return token:sub(1, i)
+      end)
+      :totable()
   end
 
   local function del_user_cmd(name)
@@ -184,17 +185,13 @@ U.overcmd = (function()
     if not rec then
       return
     end
-    for _, name in ipairs(rec.commands or {}) do
-      del_user_cmd(name)
-    end
+    fun.iter(rec.commands or {}):for_each(del_user_cmd)
     if rec.using_ca then
-      for _, lhs in ipairs(rec.abbrevs or {}) do
+      fun.iter(rec.abbrevs or {}):for_each(function(lhs)
         del_cmdline_map("ca", lhs)
-      end
+      end)
     else
-      for _, lhs in ipairs(rec.abbrevs or {}) do
-        unset_abbrev(lhs)
-      end
+      fun.iter(rec.abbrevs or {}):for_each(unset_abbrev)
     end
     ACTIVE[canon] = nil
   end
@@ -274,9 +271,9 @@ U.overcmd = (function()
     end
 
     local tokens = type(opts.from) == "string" and { opts.from } or vim.deepcopy(opts.from)
-    for _, a in ipairs(opts.also_aliases or {}) do
+    fun.iter(opts.also_aliases or {}):for_each(function(a)
       table.insert(tokens, a)
-    end
+    end)
     local min_len = opts.min_prefix_len or 2
     local install_late = opts.install_late == true
 
@@ -284,22 +281,20 @@ U.overcmd = (function()
     local rec = { commands = { opts.canon }, abbrevs = {}, using_ca = supports_ca_mode() }
 
     local lhses, seen = {}, {}
-    for _, t in ipairs(tokens) do
-      for _, p in ipairs(prefixes(t, min_len)) do
+    fun.iter(tokens):for_each(function(t)
+      fun.iter(prefixes(t, min_len)):for_each(function(p)
         if not seen[p] then
           lhses[#lhses + 1] = p
           seen[p] = true
         end
-      end
-    end
+      end)
+    end)
 
     local function install()
       if rec.using_ca then
         -- Neovim ≥ 0.10: Lua cmdline abbreviation keymaps ("ca")
-        for _, lhs in ipairs(lhses) do
+        fun.iter(lhses):for_each(function(lhs)
           del_cmdline_map("ca", lhs) -- clear if present
-          -- Match: start (optional ws), the exact prefix, then space/! or EOL.
-          -- NOTE: use \( ... \) (capturing) to avoid \%( ... ) mishaps.
           local expr = string.format(
             "(getcmdtype() == ':' && getcmdline() =~# '^\\s*%s\\(\\s\\|!\\|$\\)') ? '%s' : '%s'",
             lhs,
@@ -308,10 +303,9 @@ U.overcmd = (function()
           )
           vim.keymap.set("ca", lhs, expr, { expr = true, silent = true })
           table.insert(rec.abbrevs, lhs)
-        end
+        end)
       else
-        -- Older: use :cabbrev <expr>
-        for _, lhs in ipairs(lhses) do
+        fun.iter(lhses):for_each(function(lhs)
           unset_abbrev(lhs)
           local cmd = string.format(
             "cabbrev <expr> %s (getcmdtype()==':' && getcmdline() =~# '^\\s*%s\\(\\s\\|!\\|$\\)') ? '%s' : '%s'",
@@ -322,7 +316,7 @@ U.overcmd = (function()
           )
           vim.cmd(cmd)
           table.insert(rec.abbrevs, lhs)
-        end
+        end)
       end
     end
 
@@ -463,7 +457,7 @@ exec lstr %s -- "$PATH_TO"
       color_icons = true,
       fzf_opts = {
         ["--multi"] = "",
-        ["--header"] = "Select dir(s) → <Enter> to grep • <Tab> multi-select",
+        ["--header"] = ":: <CR> to grep :: <Tab> multi-select",
         ["--preview-window"] = "right,60%,border-left,wrap",
         ["--preview"] = preview,
       },
@@ -502,6 +496,8 @@ exec lstr %s -- "$PATH_TO"
   return FL
 end
 
+-- NOTE: This solution is far from perfect and the conversion between the Mason names and LSP names
+-- is lossy.
 function U.mason_lspconfig(mason_lspconfig_instance)
   local ML = {}
 
@@ -519,25 +515,30 @@ function U.mason_lspconfig(mason_lspconfig_instance)
     end
 
     -- multi: return a list of RHS values
-    local out = {}
     if vim.islist(packages) then
-      for _, pkg in ipairs(packages) do
-        local lsp = maps[pkg]
-        if lsp then
-          table.insert(out, lsp)
-        end
-      end
-    else
-      for pkg, enabled in pairs(packages) do
-        if enabled and type(pkg) == "string" then
-          local lsp = maps[pkg]
-          if lsp then
-            table.insert(out, lsp)
-          end
-        end
-      end
+      return fun
+        .iter(packages)
+        :map(function(pkg)
+          return maps[pkg]
+        end)
+        :filter(function(lsp)
+          return lsp ~= nil
+        end)
+        :totable()
     end
-    return out
+
+    return fun
+      .iter(pairs(packages))
+      :filter(function(pkg, enabled)
+        return enabled and type(pkg) == "string"
+      end)
+      :map(function(pkg)
+        return maps[pkg]
+      end)
+      :filter(function(lsp)
+        return lsp ~= nil
+      end)
+      :totable()
   end
 
   ---Inverse: return Mason package name(s) for given lspconfig server name(s).
@@ -552,25 +553,30 @@ function U.mason_lspconfig(mason_lspconfig_instance)
       return maps[servers]
     end
 
-    local out = {}
     if vim.islist(servers) then
-      for _, lsp in ipairs(servers) do
-        local pkg = maps[lsp]
-        if pkg then
-          table.insert(out, pkg)
-        end
-      end
-    else
-      for lsp, enabled in pairs(servers) do
-        if enabled and type(lsp) == "string" then
-          local pkg = maps[lsp]
-          if pkg then
-            table.insert(out, pkg)
-          end
-        end
-      end
+      return fun
+        .iter(servers)
+        :map(function(lsp)
+          return maps[lsp]
+        end)
+        :filter(function(pkg)
+          return pkg ~= nil
+        end)
+        :totable()
     end
-    return out
+
+    return fun
+      .iter(pairs(servers))
+      :filter(function(lsp, enabled)
+        return enabled and type(lsp) == "string"
+      end)
+      :map(function(lsp)
+        return maps[lsp]
+      end)
+      :filter(function(pkg)
+        return pkg ~= nil
+      end)
+      :totable()
   end
 
   return ML

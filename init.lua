@@ -1,9 +1,6 @@
 local fun = require "fun"
 -- TODO:
 -- 1. use enhanced bd in fzf buffer list ctrl + x
--- 2. create utility commands on fzf like copy current file path
--- 3. add lazygit? or rely only on mini git
--- 4. move the copy diagnostic utility as loosely coupled in @utils.lua
 -- 5. tidy up ripgrep plugin configuration
 -- 6. document everything in @utils.lua
 
@@ -339,9 +336,9 @@ do_now(function()
   vim.keymap.set("n", "<leader>ld", function()
     fzf.diagnostics_document {
       actions = {
-        ["ctrl-c"] = copy_diagnostic,
+        ["y"] = copy_diagnostic,
       },
-      fzf_opts = { ["--preview-window"] = "right:60%:wrap:+{2}" },
+      fzf_opts = { ["--preview-window"] = "right:60%:wrap:+{2}", ["--header"] = ":: y to yank the diagnostic" },
     }
   end, { desc = "Document diagnostics (fzf-lua) with copy" })
 
