@@ -53,7 +53,7 @@ Clone the configuration into your NeoVim config directory
     ```
 
 > [!IMPORTANT]
-> **It is strongly encouraged to back up your previous configuration to avoid data loss. If `~/.config/neovim/` is empty directory - you're safe to clone. Otherwise - do a backup.**
+> **It is strongly encouraged to back up your previous configuration to avoid data loss. If `~/.config/nvim/` is empty directory - you're safe to clone. Otherwise - do a backup.**
 
 ### Other prerequisities before running 
 
