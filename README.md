@@ -29,6 +29,7 @@ A tribute to the era before bloat. Vim, reinterpreted.
 
 The codebase is small enough to understand in one sitting, and flexible enough to rebuild from scratch.  
 Fork it, strip it down, or change it into something unrecognizable - it’s still yours.
+If you wish to use different LSP servers or formatters, search codebase for `conform` and `blink` keywords.
 
 ## Installation
 
@@ -71,6 +72,31 @@ Clone the configuration into your NeoVim config directory
 The Golden Vim was created with mind of [Ghostty][ghostty] terminal emulator and [Berkeley Mono][berkeleymono] typeface by [U.S. Graphics Company][usgraphics]. It'll work flawlessly in other setups but if you wish to replicate the look from the media resources - use these!
 
 The port of `murphy` theme for [bat][bat] (previews) can be found on the [`murphy.tmTheme`](https://github.com/neg4n/murphy.tmTheme) repository
+
+### Keymaps and bindings
+
+#### Short intro
+
+- Leader key is `Space`.
+- Normal `<leader>n` – open MiniNotify history.
+- Normal `-` – toggle the Oil file explorer in a float.
+- Normal `gd` – jump to LSP definition.
+- Normal `gra` - LSP code action.
+- Normal `grn` - LSP rename.
+- Normal `<leader>r` – format the current buffer asynchronously.
+- Normal `<leader>ld` – fzf-lua diagnostics picker with yank support.
+- Normal `<leader>f` – fzf-lua files.
+- Normal `<leader>s` – fzf-lua document symbols.
+- Normal `<leader>b` – fzf-lua buffers.
+- Normal `<leader>/` – scoped live ripgrep.
+- Normal `<leader>?` – pick directories, then live ripgrep.
+- Normal `<leader>g` – fzf-lua Git diff view.
+- Normal `<leader>vh` – fzf-lua help tags.
+- Oil buffer `q` / `<Esc>` – close the floating Oil window.
+
+#### More 
+
+For the Git integration, type `:Git <any-command>` and explore by yourself. Refer to the [`mini.git`](https://github.com/nvim-mini/mini-git) docs eventually. The Golden Vim works best if you are used to manage Git via terminal _(it also respects your git aliases)_ and GitHub via [GitHub CLI](https://cli.github.com)
 
 ## Further customization
 
