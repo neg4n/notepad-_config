@@ -1,6 +1,16 @@
+
+
+
+https://github.com/user-attachments/assets/835d7d6e-80fb-4d4e-ab8d-cbbadfa78f69
+
+
 A tribute to the era before bloat. Vim, reinterpreted.
 
-## Features
+<img width="321" height="79" alt="Banner" align="right" src="https://github.com/user-attachments/assets/e011a56b-4d03-4a18-b73b-e572e8064956" />
+
+
+
+### Features
 
 - Written entirely in [Lua][lua] - the language that stays out of your way.
 - Uncomplicated. No lazy-loading nonsense or dependency pyramids that break on edit. In modern "Vim frameworks", even the smallest change can trigger an avalanche.
@@ -13,9 +23,9 @@ A tribute to the era before bloat. Vim, reinterpreted.
 - Smart, but never intrusive - LSPs, diagnostics, formatters, Git integration.
 - Packed with QoL features: enhanced `:Bdelete` commands, synced terminal colors (`MiniMisc.sync_termbg`), scoped live [`ripgrep`][ripgrep] with [`fzf`][fzf], smarter closing of [`oil`][oil] buffers, and more.
 - No attempts to imitate a GUI IDE. No file tree, no icons, no floating clutter.
-- Focused andreliable - works in any stack, any size. Tested inside large monorepos.
+- Focused and reliable - works in any stack, any size. Tested inside large monorepos.
 
-### Customization
+#### Customization
 
 The codebase is small enough to understand in one sitting, and flexible enough to rebuild from scratch.  
 Fork it, strip it down, or change it into something unrecognizable - it’s still yours.
@@ -58,7 +68,7 @@ Clone the configuration into your NeoVim config directory
 
 ### Optional enhancements
 
-The Golden Vim was created with mind of [Ghostty] terminal emulator and [Berkeley Mono] typeface. It'll work flawlessly in other setups but if you wish to replicate the look from the media resources - use these!
+The Golden Vim was created with mind of [Ghostty][ghostty] terminal emulator and [Berkeley Mono][berkeleymono] typeface by [U.S. Graphics Company][usgraphics]. It'll work flawlessly in other setups but if you wish to replicate the look from the media resources - use these!
 
 The port of `murphy` theme for [bat][bat] (previews) can be found on the [`murphy.tmTheme`](https://github.com/neg4n/murphy.tmTheme) repository
 
@@ -169,3 +179,6 @@ The MIT License.
 [gh]: https://cli.github.com/
 [luafun]: https://luafun.github.io/ 
 [oil]: https://github.com/stevearc/oil.nvim 
+[ghostty]: https://ghostty.org/
+[berkeleymono]: https://usgraphics.com/products/berkeley-mono
+[usgraphics]: https://usgraphics.com/
