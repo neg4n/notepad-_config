@@ -18,7 +18,7 @@ A tribute to the era before bloat. Vim, reinterpreted.
 ### Customization
 
 The codebase is small enough to understand in one sitting, and flexible enough to rebuild from scratch.  
-Fork it, strip it down, or change it into something unrecognizable — it’s still yours.
+Fork it, strip it down, or change it into something unrecognizable - it’s still yours.
 
 ## Installation
 
@@ -34,11 +34,11 @@ Clone the configuration into your NeoVim config directory
 
 - Via `git`
     ```bash
-        git clone https://github.com/neg4n/the-golden-vim ~/.config/nvim/ && cd ~/.config/nvim/
+    git clone https://github.com/neg4n/the-golden-vim ~/.config/nvim/ && cd ~/.config/nvim/
     ```
 - Via [GitHub CLI][gh] (`gh`)
     ```bash
-        gh repo clone neg4n/the-golden-vim ~/.config/nvim && cd ~/.config/nvim
+    gh repo clone neg4n/the-golden-vim ~/.config/nvim && cd ~/.config/nvim
     ```
 
 > [!IMPORTANT]
@@ -68,8 +68,7 @@ Here are some utilities that were in The Golden Vim originally but were removed 
 
 <summary>
 
-Smart path shortening function for better visual displays. (declare inside scope of `U.fs` [internally for `utils.lua`: `F.` module])
-
+Smart path shortening function for better visual displays. 
 
 <details>
 
