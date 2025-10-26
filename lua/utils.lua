@@ -53,7 +53,7 @@ U.fs = (function()
     if ok then
       return true
     end
-    if err and err:match("EEXIST") then
+    if err and err:match "EEXIST" then
       return true
     end
     return false
@@ -94,7 +94,7 @@ U.fs = (function()
     if ok then
       return true
     end
-    if err and err:match("ENOENT") then
+    if err and err:match "ENOENT" then
       return true
     end
     return false
@@ -441,15 +441,7 @@ exec lstr %s -- "$PATH_TO"
             :totable()
 
           FL.live_ripgrep(vim.tbl_extend("force", opts, {
-            prompt = "rg " .. table.concat(
-              fun
-                .iter(search_dirs)
-                :map(function(path)
-                  return U.fs.path.shorten(path)
-                end)
-                :totable(),
-              ", "
-            ) .. ">",
+            prompt = "rg " .. table.concat(search_dirs, ", ") .. ">",
             search_dirs = search_dirs,
             cwd = cwd,
           }))
