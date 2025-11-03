@@ -6,6 +6,10 @@ local U = {}
 
 U.buffer = (function()
   local B = {}
+  ---Resolve Ex-style buffer tokens into a buffer handle accepted by Neovim APIs.
+  ---@param arg? string Buffer token from user input (e.g. "", "%", "#", buffer number, file name).
+  ---@return integer buf_handle Buffer handle (0 aliases current buffer) understood by helpers like `MiniBufremove.delete`.
+  ---@abstract Normalizes command arguments so overrides such as `:Bdelete` (see init.lua:183) mirror `:bdelete` semantics instead of always defaulting to `nvim_get_current_buf()`.
   B.resolve = function(arg)
     if not arg or arg == "" or arg == "%" then
       return 0
@@ -23,6 +27,130 @@ U.buffer = (function()
     end
     return 0
   end
+  return B
+end)()
+
+U.assert = (function()
+  local A = {}
+
+  ---Assert that a value is nil or a list of strings.
+  ---@overload fun(name: string, list: string[]): nil
+  ---@overload fun(name: string, list: nil): nil
+  ---@param name string
+  ---@param list any
+  function A.string_list(name, list)
+    assert(type(name) == "string" and name ~= "", "name must be a non-empty string")
+    if list == nil then
+      return
+    end
+    assert(type(list) == "table", name .. " must be a list of strings")
+    fun.iter(list):for_each(function(item)
+      assert(type(item) == "string", name .. " entries must be strings")
+    end)
+  end
+
+  return A
+end)()
+
+U.blackhole = (function()
+  local B = {}
+
+  local function to_set(list)
+    local set = {}
+    fun.iter(list or {}):for_each(function(item)
+      set[item] = true
+    end)
+    return set
+  end
+
+  ---Check whether a register is the default unnamed register.
+  ---@param reg string|nil
+  ---@return boolean
+  local function is_default_register(reg)
+    return reg == nil or reg == "" or reg == '"'
+  end
+
+  ---Decide whether blackhole mappings should be skipped for the current buffer.
+  ---@param opts { exclude_filetypes: table<string, boolean>, exclude_buftypes: table<string, boolean> }
+  ---@return boolean
+  local function should_skip(opts)
+    if vim.b.blackhole_disable then
+      return true
+    end
+    local ft = vim.bo.filetype
+    if ft ~= "" and opts.exclude_filetypes[ft] then
+      return true
+    end
+    local bt = vim.bo.buftype
+    if bt ~= "" and opts.exclude_buftypes[bt] then
+      return true
+    end
+    return false
+  end
+
+  ---Install mappings for common delete/change operators in normal + visual mode.
+  ---Default behavior:
+  ---  - Plain deletes/changes (`dw`, `ciw`, `x`, visual `d`, etc.) go to `"_`.
+  ---  - Yanks are untouched and still populate unnamed/0 registers.
+  ---  - Explicit registers (`"adw`, `"+x`, etc.) behave like stock Neovim.
+  ---  - Visual `p` is remapped to avoid clobbering the yank (uses `P` logic + black-hole delete).
+  ---  - Buffers can opt out via `vim.b.blackhole_disable = true`.
+  ---@param opts? { modes?: string[], keys?: string[], exclude_filetypes?: string[], exclude_buftypes?: string[] }
+  function B.setup(opts)
+    if opts ~= nil then
+      assert(type(opts) == "table", "opts must be a table")
+    end
+    U.assert.string_list("opts.modes", opts and opts.modes or nil)
+    U.assert.string_list("opts.keys", opts and opts.keys or nil)
+    U.assert.string_list("opts.exclude_filetypes", opts and opts.exclude_filetypes or nil)
+    U.assert.string_list("opts.exclude_buftypes", opts and opts.exclude_buftypes or nil)
+
+    opts = opts or {}
+    local settings = {
+      modes = opts.modes,
+      keys = opts.keys,
+      exclude_filetypes = to_set(opts.exclude_filetypes),
+      exclude_buftypes = to_set(opts.exclude_buftypes),
+    }
+
+    local function blackhole_op(key)
+      return function()
+        if should_skip(settings) then
+          return key
+        end
+        if is_default_register(vim.v.register) then
+          return '"_' .. key
+        end
+        return key
+      end
+    end
+
+    fun.iter(settings.keys):for_each(function(key)
+      vim.keymap.set(settings.modes, key, blackhole_op(key), {
+        noremap = true,
+        expr = true,
+        desc = "Send " .. key .. " to black-hole register unless a register is specified",
+      })
+    end)
+
+    -- Visual paste that keeps the source register intact (including explicit registers).
+    vim.keymap.set("x", "p", function()
+      if should_skip(settings) then
+        return "p"
+      end
+      local reg = vim.v.register
+      if is_default_register(reg) then
+        return '"_dP'
+      end
+      return '"_d"' .. reg .. "P"
+    end, {
+      noremap = true,
+      expr = true,
+      silent = true,
+      desc = "Visual paste without overwriting the source register",
+    })
+  end
+
   return B
 end)()
 
@@ -126,9 +254,7 @@ U.overcmd = (function()
   local ACTIVE = {} -- [canon] = { commands={}, abbrevs={}, using_ca=bool }
 
   local function supports_ca_mode()
-    local v = vim.version and vim.version()
-    -- Neovim >= 0.10
-    if v and (v.major > 0 or v.minor >= 10) and vim.keymap and vim.keymap.set then
+    if U.helpers.has_neovim_version(0.10) and vim.keymap and vim.keymap.set then
       return true
     end
     return false
@@ -206,9 +332,7 @@ U.overcmd = (function()
 
     if type(opts.from) == "string" then
     elseif type(opts.from) == "table" then
-      fun.iter(opts.from):for_each(function(v)
-        assert(type(v) == "string", "each from must be a string")
-      end)
+      U.assert.string_list("from", opts.from)
     else
       assert(false, "from must be a string or table of strings")
     end
@@ -228,10 +352,7 @@ U.overcmd = (function()
     end
 
     if opts.also_aliases ~= nil then
-      assert(type(opts.also_aliases) == "table", "also_aliases must be a table")
-      fun.iter(opts.also_aliases):for_each(function(v)
-        assert(type(v) == "string", "each also_aliases must be a string")
-      end)
+      U.assert.string_list("also_aliases", opts.also_aliases)
     end
 
     if opts.install_late ~= nil then
@@ -311,11 +432,47 @@ end)()
 function U.fzf_lua_utils(fzf_instance)
   local FL = {}
 
+  ---Parse an fzf-lua diagnostic entry (table or string).
+  FL.parse_diag_entry = function(entry)
+    if type(entry) == "table" then
+      -- when fzf-lua passes rich entries
+      return entry.path or entry.filename, entry.lnum, entry.col, entry.severity, entry.code, entry.text
+    end
+    -- fallback: parse "file:lnum:col: rest"
+    local file, l, c, rest = tostring(entry):match "^([^:]+):(%d+):(%d+):%s*(.*)$"
+    return file, tonumber(l), tonumber(c), nil, nil, rest
+  end
+
+  ---Copy an fzf-lua diagnostic selection to registers.
+  FL.copy_diagnostic = function(selected)
+    local e = selected and selected[1]
+    if not e then
+      return
+    end
+    local file, lnum, col, severity, code, text = FL.parse_diag_entry(e)
+    if not file then
+      return
+    end
+    -- compose a nice, compact line
+    local sev = severity and (tostring(severity):upper()) or nil
+    local codepart = code and ("(" .. code .. ")") or nil
+    local meta = vim.tbl_filter(function(s)
+      return s and #s > 0
+    end, { sev, codepart })
+    local meta_str = #meta > 0 and (" " .. table.concat(meta, " ")) or ""
+    local line = string.format("%s:%d:%d:%s%s", file, lnum or 1, col or 1, (text or ""):gsub("^%s+", ""), meta_str)
+
+    vim.fn.setreg("+", line) -- system clipboard
+    vim.fn.setreg('"', line) -- unnamed register (nice for `p`)
+    vim.notify("Copied diagnostic:\n" .. line)
+  end
+
+  ---Run live ripgrep via fzf-lua with a bat preview.
   FL.live_ripgrep = function(opts)
     opts = opts or {}
 
     opts.prompt = opts.prompt or "rg>"
-    opts.file_icons = true
+    opts.file_icons = false
     opts.color_icons = true
     opts.actions = fzf_instance.defaults.actions.files
     opts.previewer = nil
@@ -324,11 +481,12 @@ function U.fzf_lua_utils(fzf_instance)
       opts.cwd = opts.cwd
     end
 
+
     opts.fzf_opts = vim.tbl_extend("force", opts.fzf_opts or {}, {
       ["--delimiter"] = ":",
       ["--nth"] = "4..", -- keep the match text as the shown part (optional)
-      ["--preview-window"] = "right:60%:border-left:wrap:+{2}", -- jump preview to line {2}
-      ["--preview"] = [[bat --style=changes --theme=murphy --color=always --highlight-line {2} {1}]],
+      ["--preview-window"] = "down:60%:border-top:wrap:+{2}", -- jump preview to line {2}
+      ["--preview"] = [[bat --style=changes --theme=${BAT_THEME} --color=always --highlight-line {2} {1}]],
     })
 
     opts.fn_transform = nil
@@ -360,6 +518,7 @@ function U.fzf_lua_utils(fzf_instance)
     end, opts)
   end
 
+  ---Pick dir(s) with fd, preview via `lstr`, then run your live ripgrep in them.
   FL.pick_dirs_then_live_ripgrep = function(opts)
     opts = opts or {}
 
@@ -415,15 +574,16 @@ PATH_TO="%s/%s"
 exec lstr %s -- "$PATH_TO"
 ']]):format(root_abs, "{}", table.concat(lstr_opts, " "))
 
+
     fzf_instance.fzf_exec(fd_cmd, {
       cwd = cwd, -- run the picker from cwd
       prompt = "dirs> ",
-      file_icons = true,
+      file_icons = false,
       color_icons = true,
       fzf_opts = {
         ["--multi"] = "",
         ["--header"] = ":: <CR> to grep :: <Tab> multi-select",
-        ["--preview-window"] = "right,60%,border-left,wrap",
+        ["--preview-window"] = "down,60%,border-top,wrap",
         ["--preview"] = preview,
       },
       actions = {
@@ -538,5 +698,188 @@ function U.mason_lspconfig(mason_lspconfig_instance)
 
   return ML
 end
+
+U.helpers = (function()
+  local H = {}
+
+  H.has_neovim_version = function(ver_float)
+    local minor = math.floor(ver_float * 100 + 0.5)
+    return vim.fn.has(string.format("nvim-0.%d", minor)) == 1
+  end
+
+  H.macos_detect_system_theme = (function()
+    local MDT = {}
+    local state = { is_dark = nil, in_flight = false, timer = nil, opts = nil }
+
+    local function normalize_bool(value)
+      if value == true or value == false then
+        return value
+      end
+      return nil
+    end
+
+    local function parse_defaults_result(result)
+      if type(result) ~= "table" then
+        return nil
+      end
+
+      local code = tonumber(result.code)
+      local stdout = vim.trim(result.stdout or "")
+      local stderr = vim.trim(result.stderr or "")
+
+      if code == 0 then
+        return stdout == "Dark"
+      end
+
+      local combined = (stdout .. "\n" .. stderr)
+      if combined:match "does not exist" then
+        return false
+      end
+
+      return nil
+    end
+
+    local function detect_is_dark_sync()
+      if vim.fn.executable "defaults" == 0 then
+        return nil
+      end
+
+      local ok, proc = pcall(vim.system, { "defaults", "read", "-g", "AppleInterfaceStyle" }, { text = true })
+      if ok and proc then
+        local result = proc:wait(1000)
+        return normalize_bool(parse_defaults_result(result))
+      end
+
+      local stdout = vim.fn.system { "defaults", "read", "-g", "AppleInterfaceStyle" }
+      local code = vim.v.shell_error
+      return normalize_bool(parse_defaults_result { code = code, stdout = stdout, stderr = "" })
+    end
+
+    local function detect_is_dark_async(callback)
+      assert(type(callback) == "function", "callback must be a function")
+
+      if vim.fn.executable "defaults" == 0 then
+        callback(nil)
+        return
+      end
+
+      if state.in_flight then
+        return
+      end
+
+      state.in_flight = true
+      vim.system({ "defaults", "read", "-g", "AppleInterfaceStyle" }, { text = true }, function(result)
+        state.in_flight = false
+        local is_dark = normalize_bool(parse_defaults_result(result))
+        vim.schedule(function()
+          callback(is_dark)
+        end)
+      end)
+    end
+
+    local function apply_mode(is_dark, opts)
+      local resolved_theme = is_dark and "dark" or "light"
+
+      if opts.set_background ~= false then
+        vim.o.background = is_dark and "dark" or "light"
+      end
+
+      local colorscheme = opts.colorscheme
+      if type(colorscheme) == "table" then
+        local target = is_dark and colorscheme.dark or colorscheme.light
+        if type(target) == "string" and target ~= "" and vim.g.colors_name ~= target then
+          pcall(vim.cmd.colorscheme, target)
+        end
+        if type(target) == "string" and target ~= "" then
+          resolved_theme = target
+        end
+      end
+
+      local on_change = opts.on_change
+      if type(on_change) == "function" then
+        pcall(on_change, is_dark and "dark" or "light", is_dark, resolved_theme)
+      end
+    end
+
+    local function update_background()
+      local opts = state.opts or {}
+      detect_is_dark_async(function(is_dark)
+        if is_dark == nil then
+          return
+        end
+        if state.is_dark ~= is_dark then
+          state.is_dark = is_dark
+          apply_mode(is_dark, opts)
+        end
+      end)
+    end
+
+    MDT.setup = function(opts)
+      opts = opts or {}
+      if uv.os_uname().sysname ~= "Darwin" then
+        return
+      end
+
+      state.opts = opts
+
+      local is_dark = detect_is_dark_sync()
+      if is_dark ~= nil then
+        state.is_dark = is_dark
+        apply_mode(is_dark, opts)
+      end
+
+      local augroup = vim.api.nvim_create_augroup("MacOSSystemTheme", { clear = true })
+
+      vim.api.nvim_create_autocmd({ "FocusGained", "VimResume" }, {
+        group = augroup,
+        callback = update_background,
+      })
+
+      if state.timer then
+        pcall(function()
+          state.timer:stop()
+        end)
+        pcall(function()
+          state.timer:close()
+        end)
+        state.timer = nil
+      end
+
+      local interval = tonumber(opts.poll_interval_ms) or 10000
+      state.timer = uv.new_timer()
+      state.timer:start(interval, interval, vim.schedule_wrap(update_background))
+
+      vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = augroup,
+        callback = function()
+          if not state.timer then
+            return
+          end
+          pcall(function()
+            state.timer:stop()
+          end)
+          pcall(function()
+            state.timer:close()
+          end)
+          state.timer = nil
+        end,
+      })
+    end
+
+    function MDT.get_current_mode()
+      if state.is_dark == nil then
+        local is_dark = detect_is_dark_sync()
+        if is_dark ~= nil then
+          state.is_dark = is_dark
+        end
+      end
+      return state.is_dark and "dark" or "light"
+    end
+
+    return MDT
+  end)()
+
+  return H
+end)()
 
 return U
