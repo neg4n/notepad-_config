@@ -21,9 +21,15 @@ A tribute to the era before bloat. Vim, reinterpreted.
 - Straightforward, top-to-bottom configuration. No maze of directories or 999 files for 999 plugins.
 - Relies on proven tools that already do the job (`rg`, `fzf`, `bat`, and friends). No pointless Lua re-implementations "just because".
 - Smart, but never intrusive - LSPs, diagnostics, formatters, Git integration.
-- Packed with QoL features: enhanced `:Bdelete` commands, synced terminal colors (`MiniMisc.sync_termbg`), scoped live [`ripgrep`][ripgrep] with [`fzf`][fzf], smarter closing of [`oil`][oil] buffers, and more.
+- Packed with QoL features: enhanced `:Bdelete` commands, synced terminal colors (`MiniMisc.sync_termbg`), scoped live [`ripgrep`][ripgrep] with [`fzf`][fzf],[`oil.nvim`][oil]-like keybindings for [Mini.files][minifiles] filesystem buffers, and more.
 - No attempts to imitate a GUI IDE. No file tree, no icons, no floating clutter.
 - Focused and reliable - works in any stack, any size. Tested inside large monorepos.
+
+### Quality of life improvements
+
+- Helix-style edits: yank once (`yiw`), then mutate freely—`dw`/`ciw`/`x` default to `"_` and visual `p` pastes without polluting the yank; explicit registers like `"adw` still capture text. Disabled for special buffers (help, prompt, terminal, grug-far) and can be turned off per-buffer with `vim.b.blackhole_disable = true`.
+- Reliable MacOS system theme detection (dark, light) with adjusting the current Vim colors basing on built-in themes - `peachpuff` for light and `murphy` for dark. Including TextMate ports of these themes for `bat` (see [github.com/neg4n/murphy.tmTheme](https://github.com/neg4n/murphy.tmTheme) and [github.com/neg4n/peachpuff.tmTheme](https://github.com/neg4n/peachpuff.tmTheme)), made exclusively for The Golden Vim
+- Easy copy of particular LSP/Linter diagnostics inside `fzf-lua` diagnostics window. Very useful for pointing external AI Agents (like OpenAI Codex) to a specific problems.
 
 #### Customization
 
@@ -71,7 +77,7 @@ Clone the configuration into your NeoVim config directory
 
 The Golden Vim was created with mind of [Ghostty][ghostty] terminal emulator and [Berkeley Mono][berkeleymono] typeface by [U.S. Graphics Company][usgraphics]. It'll work flawlessly in other setups but if you wish to replicate the look from the media resources - use these!
 
-The port of `murphy` theme for [bat][bat] (previews) can be found on the [`murphy.tmTheme`](https://github.com/neg4n/murphy.tmTheme) repository
+The ports of `murphy` and `peachpuff` themes for [bat][bat] (previews) can be found on the [`murphy.tmTheme`](https://github.com/neg4n/murphy.tmTheme) and [peachpuff.tmTheme](https://github.com/neg4n/peachpuff.tmTheme) repositories.
 
 ### Keymaps and bindings
 
@@ -208,3 +214,4 @@ The MIT License.
 [ghostty]: https://ghostty.org/
 [berkeleymono]: https://usgraphics.com/products/berkeley-mono
 [usgraphics]: https://usgraphics.com/
+[minifiles]: https://github.com/nvim-mini/mini.files 
